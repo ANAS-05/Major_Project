@@ -7,6 +7,9 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
+from database import init_db
+from routers.auth import router as auth_router
+
 import joblib
 import requests
 import os
@@ -48,6 +51,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include auth router
+app.include_router(auth_router)
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup."""
+    init_db()
+    print("[OK] Database initialized successfully!")
 
 # ─────────────────────────────────────────────────
 # LOAD MODEL
