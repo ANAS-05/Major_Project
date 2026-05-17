@@ -51,12 +51,18 @@ export default function Navbar() {
               <Link
                 key={link.href}
                 to={link.href}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                className={`relative px-3 py-2 text-sm font-medium transition-colors ${
                   isActive
-                    ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    ? "text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
+                {isActive && (
+                  <motion.span
+                    layoutId="nav-indicator"
+                    className="absolute inset-x-2 bottom-0 h-0.5 rounded-full bg-foreground"
+                  />
+                )}
                 {link.label}
               </Link>
             );
@@ -143,7 +149,7 @@ export default function Navbar() {
                           onClick={() => setMobileOpen(false)}
                           className={`flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
                             isActive
-                              ? "bg-primary/10 text-primary"
+                              ? "text-foreground bg-muted"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
                           }`}
                         >

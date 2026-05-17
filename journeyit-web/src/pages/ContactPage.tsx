@@ -31,8 +31,8 @@ const contactInfo = [
   {
     icon: MapPin,
     label: "Office",
-    value: "Bangalore, India",
-    description: "HSR Layout, Sector 7",
+    value: "Hyderabad, India",
+    description: "MJCET Hyderabad",
   },
   {
     icon: Clock,
@@ -163,7 +163,7 @@ export default function ContactPage() {
                           </Label>
                           <Input
                             id="name"
-                            placeholder="John Doe"
+                            placeholder="Anas Syed"
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             required
@@ -177,7 +177,7 @@ export default function ContactPage() {
                           <Input
                             id="email"
                             type="email"
-                            placeholder="john@example.com"
+                            placeholder="salman@gmail.com"
                             value={formData.email}
                             onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                             required
