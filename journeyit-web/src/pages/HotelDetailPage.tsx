@@ -17,10 +17,8 @@ import {
   Waves,
   Utensils,
   Dumbbell,
-  Sparkles,
   ChevronDown,
   ChevronUp,
-  Check,
   Home,
   ArrowLeft,
   Calendar,
@@ -88,10 +86,40 @@ const hotelDetails = {
     { icon: Utensils, label: "Restaurant", description: "Multi-cuisine dining options" },
     { icon: Dumbbell, label: "Fitness center", description: "24/7 gym with modern equipment" },
   ],
-  features: [
-    { icon: Sparkles, label: "Dedicated workspace", description: "A common area with wifi that's well-suited for working" },
-    { icon: Check, label: "Self check-in", description: "Check yourself in with the lockbox" },
-    { icon: Calendar, label: "Free cancellation", description: "Places in free cancellation for 48 hours" },
+  features: [],
+  reviewsList: [
+    {
+      id: 1,
+      name: "Rahul Sharma",
+      avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&h=100&fit=crop&crop=face",
+      rating: 5,
+      date: "December 2024",
+      review: "Absolutely stunning property! The palace is breathtaking and the service is impeccable. The view from the room was spectacular. Highly recommend for a luxury getaway.",
+    },
+    {
+      id: 2,
+      name: "Priya Patel",
+      avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
+      rating: 5,
+      date: "November 2024",
+      review: "One of the best hotel experiences I've ever had. The staff went above and beyond to make our anniversary special. The food at the restaurant was world-class.",
+    },
+    {
+      id: 3,
+      name: "Arjun Reddy",
+      avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&h=100&fit=crop&crop=face",
+      rating: 4,
+      date: "October 2024",
+      review: "Beautiful property with amazing architecture. The room was spacious and well-maintained. Only minor issue was the slow WiFi in some areas, but overall a great stay.",
+    },
+    {
+      id: 4,
+      name: "Ananya Kumar",
+      avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=100&h=100&fit=crop&crop=face",
+      rating: 5,
+      date: "September 2024",
+      review: "Perfect for a family vacation! The kids loved the pool and the historical tour of the palace. The breakfast buffet had so many options. Will definitely come back!",
+    },
   ],
 };
 
@@ -596,23 +624,6 @@ export default function HotelDetailPage() {
                 </div>
               </div>
             </div>
-
-            <Separator className="my-6" />
-
-            {/* Features */}
-            <div className="space-y-4 mb-6">
-              {hotel.features.map((feature, index) => (
-                <div key={index} className="flex items-start gap-3">
-                  <div className="flex size-10 items-center justify-center rounded-lg bg-muted shrink-0">
-                    <feature.icon className="size-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-foreground">{feature.label}</p>
-                    <p className="text-sm text-muted-foreground">{feature.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
           </motion.div>
 
           {/* What this place offers */}
@@ -636,6 +647,65 @@ export default function HotelDetailPage() {
                 </div>
               ))}
             </div>
+          </motion.div>
+
+          {/* Reviews Section */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.5 }}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-foreground">
+                Reviews ({hotel.reviews})
+              </h2>
+              <div className="flex items-center gap-2">
+                <Star className="size-5 fill-primary text-primary" />
+                <span className="font-semibold text-foreground">{hotel.rating}</span>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {hotel.reviewsList.map((review) => (
+                <Card key={review.id} className="border border-border bg-card">
+                  <CardContent className="p-5">
+                    <div className="flex items-start gap-4">
+                      <img
+                        src={review.avatar}
+                        alt={review.name}
+                        className="size-12 rounded-full object-cover"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <h4 className="font-semibold text-foreground truncate">{review.name}</h4>
+                          <span className="text-xs text-muted-foreground shrink-0">{review.date}</span>
+                        </div>
+                        <div className="flex items-center gap-1 mt-1">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`size-3.5 ${
+                                i < review.rating
+                                  ? "fill-primary text-primary"
+                                  : "text-muted-foreground"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                        <p className="text-sm text-muted-foreground mt-3 leading-relaxed">
+                          {review.review}
+                        </p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            <Button variant="outline" className="mt-6 w-full sm:w-auto border-border">
+              Show all {hotel.reviews} reviews
+            </Button>
           </motion.div>
 
           {/* Gallery - Remaining Images */}

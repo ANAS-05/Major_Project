@@ -154,7 +154,7 @@ export default function LandingPage() {
                 </Link>
               </div>
 
-              <div className="mt-8 flex items-center gap-3">
+              <div className="mt-8 flex items-center justify-center gap-3">
                 <div className="flex -space-x-2">
                   {[
                     "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&h=100&fit=crop&crop=face",
