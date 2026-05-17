@@ -68,7 +68,7 @@ def init_db():
     from models_sqlite import (
         User, UserPreference, Address, Flight, Hotel,
         FlightBooking, HotelBooking, Itinerary, Payment,
-        Review, Favorite, PaymentMethod
+        Review, Favorite, PaymentMethod, ChatMessage
     )
     
     print("[DB] Initializing database...")

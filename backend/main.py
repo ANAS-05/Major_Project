@@ -9,6 +9,7 @@ from email.mime.multipart import MIMEMultipart
 
 from database import init_db
 from routers.auth import router as auth_router
+from routers.chat import router as chat_router
 
 import joblib
 import requests
@@ -54,6 +55,9 @@ app.add_middleware(
 
 # Include auth router
 app.include_router(auth_router)
+
+# Include chat router
+app.include_router(chat_router)
 
 
 @app.on_event("startup")
@@ -1289,79 +1293,11 @@ def search_flights(data: FlightSearch):
     }
 
 
-# ── CHAT ─────────────────────────────────────────
-@app.post("/chat")
-def chat(req: ChatRequest):
-    query = req.message.strip()
-    if not query:
-        return {"reply": "Please type a travel question!", "data": None}
-
-    intent = _detect_intent(query)
-
-    _NON_FLIGHT_INTENTS = {
-        "greeting", "thanks", "help", "personal_intro",
-        "trust_score", "destination_suggestion", "budget_advice",
-        "visa_info", "packing_tips", "weather_season",
-        "hotel_recommendation", "other_transport", "general",
-    }
-    if intent in _NON_FLIGHT_INTENTS:
-        return {"reply": _handle_non_flight(intent, query), "data": None}
-
-    from_iata, to_iata, cities_found = _extract_route(query)
-
-    if cities_found == 0:
-        return {
-            "reply": (
-                "I'd love to help! Try one of these:\n\n"
-                "• *'Should I book Hyderabad to Goa next weekend?'*\n"
-                "• *'How much is Delhi to Mumbai in 7 days?'*\n"
-                "• *'Best hotels in Bangalore?'*\n"
-                "• *'Where should I travel in December?'*"
-            ),
-            "data": None,
-        }
-
-    duration  = _route_duration(from_iata, to_iata) or _extract_duration(query)
-    days_left = _extract_days_left(query)
-    route     = f"{from_iata} → {to_iata}"
-
-    from_city = IATA_TO_ML_CITY.get(from_iata)
-    to_city   = IATA_TO_ML_CITY.get(to_iata)
-
-    current_price = int(_ml_predict(
-        duration, days_left,
-        from_city=from_city, to_city=to_city,
-    ))
-
-    trend = _build_trend(
-        current_price, duration, days_left,
-        from_city=from_city, to_city=to_city,
-        from_iata=from_iata, to_iata=to_iata,
-    )
-
-    ctx = {
-        "route":         route,
-        "from_iata":     from_iata,
-        "to_iata":       to_iata,
-        "current_price": current_price,
-        "future_prices": trend["future_prices"],
-        "day5_price":    trend["day5_price"],
-        "change_pct":    trend["change_pct"],
-        "confidence":    trend["confidence"],
-        "decision":      trend["decision"],
-        "trend":         trend["trend"],
-        "advice":        trend["advice"],
-        "intent":        intent,
-        "days_left":     days_left,
-        "duration":      duration,
-    }
-
-    reply = _generate_reply(query, ctx)
-    return {"reply": reply, "data": ctx}
+    # ── CHAT endpoint moved to routers/chat.py ──
 
 
-# ─────────────────────────────────────────────────
-# HOTEL HELPERS
+    # ─────────────────────────────────────────────────
+    # HOTEL HELPERS
 # ─────────────────────────────────────────────────
 
 def _hotel_ai_score(price: float, rating: float) -> dict:

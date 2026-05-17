@@ -53,6 +53,7 @@ class User(Base):
     reviews = relationship("Review", back_populates="user", cascade="all, delete-orphan")
     favorites = relationship("Favorite", back_populates="user", cascade="all, delete-orphan")
     payment_methods = relationship("PaymentMethod", back_populates="user", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="user", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<User(user_id={self.user_id}, email={self.email})>"
@@ -448,3 +449,24 @@ class PaymentMethod(Base):
         CheckConstraint(method_type.in_(["card", "upi", "netbanking", "wallet"])),
         CheckConstraint(card_brand.in_(["visa", "mastercard", "amex", "rupay", "diners", None])),
     )
+
+
+# ==========================================
+# 13. CHAT MESSAGE MODEL (Conversation History)
+# ==========================================
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    message_id = Column(String(36), primary_key=True, default=generate_uuid)
+    conversation_id = Column(String(36), nullable=True, index=True)
+    user_id = Column(String(36), ForeignKey("users.user_id"), nullable=False, index=True)
+    role = Column(String(20), nullable=False)  # "user" or "assistant"
+    content = Column(Text, nullable=False)
+    intent = Column(String(50), nullable=True)  # detected intent
+    created_at = Column(DateTime, default=datetime.utcnow, index=True)
+
+    # Relationships
+    user = relationship("User", back_populates="chat_messages")
+
+    def __repr__(self):
+        return f"<ChatMessage(user_id={self.user_id}, role={self.role})>"
