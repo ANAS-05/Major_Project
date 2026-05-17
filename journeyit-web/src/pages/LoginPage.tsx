@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plane, ArrowRight, Mail, Lock, Eye, EyeOff } from "lucide-react";
+import { Plane, ArrowRight, Mail, Lock, Eye, EyeOff, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,8 +14,8 @@ import {
   type CarouselApi,
 } from "@/components/ui/carousel";
 import Autoplay from "embla-carousel-autoplay";
+import { useAuth } from "@/context/AuthContext";
 
-// Import local images from assets
 import carousel1 from "@/assets/download.jfif";
 import carousel2 from "@/assets/download (1).jfif";
 import carousel3 from "@/assets/download (2).jfif";
@@ -26,29 +26,64 @@ const carouselImages = [
   { src: carousel3, alt: "Explore the world" },
 ];
 
+type AuthMode = "login" | "register";
+
 export default function LoginPage() {
+  const navigate = useNavigate();
+  const { login, register, isAuthenticated } = useAuth();
+
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
   const [showPassword, setShowPassword] = useState(false);
+  const [mode, setMode] = useState<AuthMode>("login");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate("/");
+    }
+  }, [isAuthenticated, navigate]);
 
   useEffect(() => {
     if (!api) return;
-
     setCurrent(api.selectedScrollSnap());
-
     api.on("select", () => {
       setCurrent(api.selectedScrollSnap());
     });
   }, [api]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setLoading(true);
+
+    try {
+      if (mode === "login") {
+        await login(email, password);
+      } else {
+        await register({
+          email,
+          password,
+          first_name: firstName,
+          last_name: lastName,
+        });
+      }
+      navigate("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Authentication failed. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleGoogleLogin = () => {
-    // Handle Google OAuth
+    // Google login via Firebase is separate - can be implemented later
   };
 
   return (
@@ -83,7 +118,6 @@ export default function LoginPage() {
             </CarouselContent>
           </Carousel>
 
-          {/* Logo overlay */}
           <div className="absolute top-8 left-8 z-10">
             <Link to="/" className="flex items-center gap-2">
               <Plane className="size-6 text-primary" />
@@ -93,7 +127,6 @@ export default function LoginPage() {
             </Link>
           </div>
 
-          {/* Carousel indicators */}
           <div className="absolute bottom-8 left-8 right-8 z-10 flex items-center justify-between">
             <div className="flex gap-2">
               {carouselImages.map((_, index) => (
@@ -115,9 +148,8 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* ── RIGHT: Login Form ── */}
+        {/* ── RIGHT: Auth Form ── */}
         <div className="flex flex-col justify-center items-center p-6 sm:p-8 lg:p-12">
-          {/* Mobile logo */}
           <div className="lg:hidden mb-8">
             <Link to="/" className="flex items-center gap-2">
               <Plane className="size-6 text-primary" />
@@ -137,12 +169,21 @@ export default function LoginPage() {
               <CardContent className="p-6 sm:p-8">
                 <div className="text-center mb-6">
                   <h1 className="text-2xl font-bold text-foreground">
-                    Welcome back
+                    {mode === "login" ? "Welcome back" : "Create account"}
                   </h1>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Sign in to continue your journey
+                    {mode === "login"
+                      ? "Sign in to continue your journey"
+                      : "Start your travel journey with JourneyIt"}
                   </p>
                 </div>
+
+                {error && (
+                  <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-destructive text-sm">
+                    <AlertCircle className="size-4 shrink-0" />
+                    {error}
+                  </div>
+                )}
 
                 {/* Google Login Button */}
                 <Button
@@ -185,7 +226,40 @@ export default function LoginPage() {
                 </div>
 
                 {/* Email/Password Form */}
-                <form onSubmit={handleLogin} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-4">
+                  {mode === "register" && (
+                    <>
+                      <div className="space-y-2">
+                        <Label htmlFor="firstName" className="text-sm font-medium text-foreground">
+                          First Name
+                        </Label>
+                        <Input
+                          id="firstName"
+                          type="text"
+                          placeholder="John"
+                          value={firstName}
+                          onChange={(e) => setFirstName(e.target.value)}
+                          required
+                          className="h-11 border-input focus:border-primary focus:ring-primary"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="lastName" className="text-sm font-medium text-foreground">
+                          Last Name
+                        </Label>
+                        <Input
+                          id="lastName"
+                          type="text"
+                          placeholder="Doe"
+                          value={lastName}
+                          onChange={(e) => setLastName(e.target.value)}
+                          required
+                          className="h-11 border-input focus:border-primary focus:ring-primary"
+                        />
+                      </div>
+                    </>
+                  )}
+
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm font-medium text-foreground">
                       Email
@@ -209,22 +283,25 @@ export default function LoginPage() {
                       <Label htmlFor="password" className="text-sm font-medium text-foreground">
                         Password
                       </Label>
-                      <Link
-                        to="#"
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Forgot password?
-                      </Link>
+                      {mode === "login" && (
+                        <Link
+                          to="#"
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Forgot password?
+                        </Link>
+                      )}
                     </div>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
+                        placeholder={mode === "register" ? "Min 8 chars, 1 uppercase, 1 digit" : "Enter your password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
+                        minLength={8}
                         className="h-11 pl-10 pr-10 border-input focus:border-primary focus:ring-primary"
                       />
                       <button
@@ -245,33 +322,55 @@ export default function LoginPage() {
                     type="submit"
                     size="lg"
                     className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90"
+                    disabled={loading}
                   >
-                    Sign in
-                    <ArrowRight className="size-4 ml-2" />
+                    {loading ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <>
+                        {mode === "login" ? "Sign in" : "Create account"}
+                        <ArrowRight className="size-4 ml-2" />
+                      </>
+                    )}
                   </Button>
                 </form>
 
                 <div className="mt-6 text-center text-sm">
                   <p className="text-muted-foreground">
-                    Don&apos;t have an account?{" "}
-                    <Link
-                      to="#"
-                      className="text-primary hover:underline font-medium"
-                    >
-                      Sign up
-                    </Link>
+                    {mode === "login" ? (
+                      <>
+                        Don&apos;t have an account?{" "}
+                        <button
+                          type="button"
+                          onClick={() => { setMode("register"); setError(null); }}
+                          className="text-primary hover:underline font-medium"
+                        >
+                          Sign up
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        Already have an account?{" "}
+                        <button
+                          type="button"
+                          onClick={() => { setMode("login"); setError(null); }}
+                          className="text-primary hover:underline font-medium"
+                        >
+                          Sign in
+                        </button>
+                      </>
+                    )}
                   </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Back to home link */}
             <div className="mt-6 text-center">
               <Link
                 to="/"
                 className="text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
-                ← Back to home
+                &larr; Back to home
               </Link>
             </div>
           </motion.div>

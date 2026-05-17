@@ -5,14 +5,12 @@ import { format } from "date-fns";
 import {
   MapPin,
   Users,
-  BedDouble,
-  Bath,
-  Square,
-  Heart,
   Star,
   Search,
   Calendar,
   Filter,
+  Loader2,
+  AlertCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,6 +30,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { searchHotels, type HotelSearchResult } from "@/lib/api";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 
@@ -46,133 +45,23 @@ const fadeUp = {
 
 const categories = ["All", "Hotel", "Resort", "Apartment", "Villa"];
 
-// Hyderabad hotels data
-const hotels = [
-  {
-    id: 1,
-    name: "Taj Falaknuma Palace",
-    location: "Falaknuma, Hyderabad",
-    category: "Hotel",
-    guests: 2,
-    beds: 1,
-    baths: 1,
-    sqft: 450,
-    rating: 4.9,
-    price: 18500,
-    image: "https://images.unsplash.com/photo-1566073771259-6a8506099945?w=600&h=400&fit=crop",
-  },
-  {
-    id: 2,
-    name: "ITC Kohenur",
-    location: "HITEC City, Hyderabad",
-    category: "Hotel",
-    guests: 2,
-    beds: 1,
-    baths: 1,
-    sqft: 420,
-    rating: 4.8,
-    price: 12000,
-    image: "https://images.unsplash.com/photo-1582719508461-905c673771fd?w=600&h=400&fit=crop",
-  },
-  {
-    id: 3,
-    name: "The Park Hyderabad",
-    location: "Somajiguda, Hyderabad",
-    category: "Hotel",
-    guests: 2,
-    beds: 1,
-    baths: 1,
-    sqft: 380,
-    rating: 4.6,
-    price: 7500,
-    image: "https://images.unsplash.com/photo-1520250497591-112f2f40a3f4?w=600&h=400&fit=crop",
-  },
-  {
-    id: 4,
-    name: "Leonia Holistic Destination",
-    location: "Bommalaramaram, Hyderabad",
-    category: "Resort",
-    guests: 4,
-    beds: 2,
-    baths: 2,
-    sqft: 650,
-    rating: 4.7,
-    price: 9500,
-    image: "https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=600&h=400&fit=crop",
-  },
-  {
-    id: 5,
-    name: "Novotel Hyderabad Airport",
-    location: "Shamshabad, Hyderabad",
-    category: "Hotel",
-    guests: 2,
-    beds: 1,
-    baths: 1,
-    sqft: 350,
-    rating: 4.5,
-    price: 6200,
-    image: "https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=600&h=400&fit=crop",
-  },
-  {
-    id: 6,
-    name: "Golkonda Resort & Spa",
-    location: "Gandipet, Hyderabad",
-    category: "Resort",
-    guests: 2,
-    beds: 1,
-    baths: 1,
-    sqft: 480,
-    rating: 4.4,
-    price: 5800,
-    image: "https://images.unsplash.com/photo-1445019980597-93fa8acb246c?w=600&h=400&fit=crop",
-  },
-  {
-    id: 7,
-    name: "Trident Hyderabad",
-    location: "HITEC City, Hyderabad",
-    category: "Hotel",
-    guests: 2,
-    beds: 1,
-    baths: 1,
-    sqft: 400,
-    rating: 4.8,
-    price: 9800,
-    image: "https://images.unsplash.com/photo-1564501049412-61c2a3083791?w=600&h=400&fit=crop",
-  },
-  {
-    id: 8,
-    name: "Hyatt Place Hyderabad",
-    location: "Banjara Hills, Hyderabad",
-    category: "Hotel",
-    guests: 2,
-    beds: 1,
-    baths: 1,
-    sqft: 360,
-    rating: 4.5,
-    price: 6800,
-    image: "https://images.unsplash.com/photo-1542314831-068cd1dbfeeb?w=600&h=400&fit=crop",
-  },
-  {
-    id: 9,
-    name: "Oakwood Residence",
-    location: "Financial District, Hyderabad",
-    category: "Apartment",
-    guests: 3,
-    beds: 1,
-    baths: 1,
-    sqft: 520,
-    rating: 4.6,
-    price: 7200,
-    image: "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&h=400&fit=crop",
-  },
-];
-
 const guestOptions = [
   { value: "1", label: "1 Guest" },
   { value: "2", label: "2 Guests" },
   { value: "3", label: "3 Guests" },
   { value: "4", label: "4 Guests" },
 ];
+
+interface HotelItem {
+  name: string;
+  price: number;
+  rating: number;
+  address: string;
+  photo_url: string;
+  ai_score: number;
+  tag: string;
+  recommended: boolean;
+}
 
 export default function HotelsPage() {
   const [activeCategory, setActiveCategory] = useState("All");
@@ -181,19 +70,37 @@ export default function HotelsPage() {
   const [checkInDate, setCheckInDate] = useState<Date | undefined>(undefined);
   const [checkOutDate, setCheckOutDate] = useState<Date | undefined>(undefined);
   const [guests, setGuests] = useState("2");
+  const [hotels, setHotels] = useState<HotelItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [searchedCity, setSearchedCity] = useState<string>("Hyderabad");
+
+  const handleSearch = async () => {
+    const city = searchQuery.trim() || "Hyderabad";
+    setSearchedCity(city);
+    setLoading(true);
+    setError(null);
+    try {
+      const result: HotelSearchResult = await searchHotels(city);
+      setHotels(result.hotels);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to search hotels");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredHotels = hotels.filter((hotel) => {
+    if (activeCategory === "All") return true;
+    if (activeCategory === "Hotel") return !hotel.name.toLowerCase().includes("resort") && !hotel.name.toLowerCase().includes("apartment") && !hotel.name.toLowerCase().includes("villa");
+    return hotel.name.toLowerCase().includes(activeCategory.toLowerCase());
+  });
 
   const toggleFavorite = (id: number) => {
     setFavorites((prev) =>
       prev.includes(id) ? prev.filter((f) => f !== id) : [...prev, id]
     );
   };
-
-  const filteredHotels = hotels.filter((hotel) => {
-    const matchesCategory = activeCategory === "All" || hotel.category === activeCategory;
-    const matchesSearch = hotel.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         hotel.location.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
 
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat("en-IN", {
@@ -209,7 +116,6 @@ export default function HotelsPage() {
 
       {/* ───────────── HERO SECTION ───────────── */}
       <section className="relative min-h-[520px] lg:min-h-[580px] flex items-center">
-        {/* Background Image */}
         <div className="absolute inset-0">
           <img
             src="https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=1920&h=800&fit=crop"
@@ -241,7 +147,7 @@ export default function HotelsPage() {
             </h1>
 
             <p className="mx-auto mt-4 max-w-xl text-base text-white/80">
-              Discover handpicked stays across Hyderabad that blend luxury and comfort for your perfect getaway.
+              Search hotels across Indian cities with AI-powered recommendations and trust scores.
             </p>
 
             {/* Search Bar */}
@@ -260,6 +166,7 @@ export default function HotelsPage() {
                         placeholder="Where to?"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
+                        onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                         className="h-11 pl-10 border-input"
                       />
                     </div>
@@ -337,9 +244,15 @@ export default function HotelsPage() {
                     <Button
                       size="lg"
                       className="h-11 bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg"
+                      onClick={handleSearch}
+                      disabled={loading}
                     >
-                      <Search className="size-4 mr-2" />
-                      Search
+                      {loading ? (
+                        <Loader2 className="size-4 mr-2 animate-spin" />
+                      ) : (
+                        <Search className="size-4 mr-2" />
+                      )}
+                      {loading ? "Searching..." : "Search"}
                     </Button>
                   </div>
                 </CardContent>
@@ -361,147 +274,188 @@ export default function HotelsPage() {
             className="text-center mb-10"
           >
             <h2 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-              Where Comfort Meets Convenience
+              {hotels.length > 0 ? `Hotels in ${searchedCity}` : "Where Comfort Meets Convenience"}
             </h2>
             <p className="mt-2 text-muted-foreground">
-              Discover handpicked stays that blend luxury and practicality
+              {hotels.length > 0
+                ? `${hotels.length} hotels found — AI-ranked by value`
+                : "Search a city above to find the best hotel deals"}
             </p>
           </motion.div>
 
-          {/* Category Filter */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.5 }}
-            className="flex items-center justify-between mb-8"
-          >
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
-              {categories.map((category) => (
-                <Button
-                  key={category}
-                  variant={activeCategory === category ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setActiveCategory(category)}
-                  className={`rounded-full px-4 ${
-                    activeCategory === category
-                      ? "bg-primary text-primary-foreground hover:bg-primary/90"
-                      : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
-                  }`}
-                >
-                  {category}
-                </Button>
-              ))}
+          {/* Error State */}
+          {error && (
+            <div className="mb-8 flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-destructive">
+              <AlertCircle className="size-5 shrink-0" />
+              <p className="text-sm">{error}</p>
             </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-muted-foreground hover:text-foreground whitespace-nowrap"
+          )}
+
+          {/* Loading State */}
+          {loading && (
+            <div className="flex items-center justify-center py-16">
+              <Loader2 className="size-8 animate-spin text-primary" />
+              <span className="ml-3 text-muted-foreground">Searching hotels...</span>
+            </div>
+          )}
+
+          {/* Category Filter */}
+          {!loading && hotels.length > 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5 }}
+              className="flex items-center justify-between mb-8"
             >
-              <Filter className="size-4 mr-2" />
-              Filters
-            </Button>
-          </motion.div>
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                {categories.map((category) => (
+                  <Button
+                    key={category}
+                    variant={activeCategory === category ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setActiveCategory(category)}
+                    className={`rounded-full px-4 ${
+                      activeCategory === category
+                        ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                        : "border-border text-muted-foreground hover:bg-muted hover:text-foreground"
+                    }`}
+                  >
+                    {category}
+                  </Button>
+                ))}
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground whitespace-nowrap"
+              >
+                <Filter className="size-4 mr-2" />
+                Filters
+              </Button>
+            </motion.div>
+          )}
 
           {/* Hotels Grid */}
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredHotels.map((hotel, i) => (
-              <motion.div
-                key={hotel.id}
-                custom={i}
-                initial="hidden"
-                whileInView="visible"
-                viewport={{ once: true }}
-                variants={fadeUp}
-              >
-                <Link to={`/hotels/${hotel.id}`}>
-                  <Card className="group overflow-hidden border border-border bg-card shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer">
-                    {/* Image Container */}
-                    <div className="relative aspect-[4/3] overflow-hidden">
-                      <img
-                        src={hotel.image}
-                        alt={hotel.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      />
-                      {/* Favorite Button */}
-                      <button
-                        onClick={(e) => {
-                          e.preventDefault();
-                          toggleFavorite(hotel.id);
-                        }}
-                        className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full bg-background/90 backdrop-blur-sm shadow-sm hover:bg-background transition-colors"
-                      >
-                        <Heart
-                          className={`size-4 ${
-                            favorites.includes(hotel.id)
-                              ? "fill-destructive text-destructive"
-                              : "text-muted-foreground"
-                          }`}
-                        />
-                      </button>
-                      {/* Category Badge */}
-                      <Badge
-                        variant="secondary"
-                        className="absolute bottom-3 left-3 bg-background/90 backdrop-blur-sm text-foreground border-0"
-                      >
-                        {hotel.category}
-                      </Badge>
-                    </div>
+          {!loading && hotels.length > 0 && (
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredHotels.map((hotel, i) => {
+                const hotelId = encodeURIComponent(hotel.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"));
+                const isFav = favorites.includes(i);
+                const defaultPhoto = `https://images.unsplash.com/photo-1566073129273-cebf9db75ef4?auto=format&fit=crop&w=600&q=80`;
+                const photoUrl = hotel.photo_url || defaultPhoto;
+                const category = hotel.name.toLowerCase().includes("resort")
+                  ? "Resort"
+                  : hotel.name.toLowerCase().includes("apartment")
+                  ? "Apartment"
+                  : hotel.name.toLowerCase().includes("villa")
+                  ? "Villa"
+                  : "Hotel";
 
-                    <CardContent className="p-4">
-                      {/* Hotel Info */}
-                      <div className="space-y-2">
-                        <h3 className="font-semibold text-foreground line-clamp-1">
-                          {hotel.name}
-                        </h3>
-                        <div className="flex items-center gap-1 text-muted-foreground">
-                          <MapPin className="size-3.5" />
-                          <span className="text-sm">{hotel.location}</span>
+                return (
+                  <motion.div
+                    key={hotel.name}
+                    custom={i}
+                    initial="hidden"
+                    whileInView="visible"
+                    viewport={{ once: true }}
+                    variants={fadeUp}
+                  >
+                    <Link to={`/hotels/${hotelId}`} state={{ hotel }}>
+                      <Card className="group overflow-hidden border border-border bg-card shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer">
+                        {/* Image Container */}
+                        <div className="relative aspect-[4/3] overflow-hidden">
+                          <img
+                            src={photoUrl}
+                            alt={hotel.name}
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                          />
+                          <button
+                            onClick={(e) => {
+                              e.preventDefault();
+                              toggleFavorite(i);
+                            }}
+                            className="absolute top-3 right-3 flex size-8 items-center justify-center rounded-full bg-background/90 backdrop-blur-sm shadow-sm hover:bg-background transition-colors"
+                          >
+                            <Star
+                              className={`size-4 ${
+                                isFav
+                                  ? "fill-destructive text-destructive"
+                                  : "text-muted-foreground"
+                              }`}
+                            />
+                          </button>
+                          {/* Category Badge */}
+                          <Badge
+                            variant="secondary"
+                            className="absolute bottom-3 left-3 bg-background/90 backdrop-blur-sm text-foreground border-0"
+                          >
+                            {category}
+                          </Badge>
+                          {/* AI Score Badge */}
+                          {hotel.tag && (
+                            <Badge
+                              className="absolute top-3 left-3 bg-primary/90 text-primary-foreground border-0 text-xs"
+                            >
+                              {hotel.tag}
+                            </Badge>
+                          )}
                         </div>
 
-                        {/* Specs */}
-                        <div className="flex items-center gap-3 text-muted-foreground py-2">
-                          <div className="flex items-center gap-1">
-                            <Users className="size-3.5" />
-                            <span className="text-xs">{hotel.guests} Guests</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <BedDouble className="size-3.5" />
-                            <span className="text-xs">{hotel.beds} Beds</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Bath className="size-3.5" />
-                            <span className="text-xs">{hotel.baths} Baths</span>
-                          </div>
-                          <div className="flex items-center gap-1">
-                            <Square className="size-3.5" />
-                            <span className="text-xs">{hotel.sqft} ft²</span>
-                          </div>
-                        </div>
+                        <CardContent className="p-4">
+                          <div className="space-y-2">
+                            <h3 className="font-semibold text-foreground line-clamp-1">
+                              {hotel.name}
+                            </h3>
+                            <div className="flex items-center gap-1 text-muted-foreground">
+                              <MapPin className="size-3.5" />
+                              <span className="text-sm line-clamp-1">{hotel.address}</span>
+                            </div>
 
-                        {/* Rating & Price */}
-                        <div className="flex items-center justify-between pt-2 border-t border-border">
-                          <div className="flex items-center gap-1">
-                            <Star className="size-4 fill-primary text-primary" />
-                            <span className="text-sm font-medium text-foreground">{hotel.rating}</span>
+                            {/* Rating & Price */}
+                            <div className="flex items-center justify-between pt-2 border-t border-border">
+                              <div className="flex items-center gap-1">
+                                <Star className="size-4 fill-primary text-primary" />
+                                <span className="text-sm font-medium text-foreground">{hotel.rating}</span>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-lg font-bold text-primary">
+                                  {formatPrice(hotel.price)}
+                                </span>
+                                <span className="text-xs text-muted-foreground">/night</span>
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <span className="text-lg font-bold text-primary">
-                              {formatPrice(hotel.price)}
-                            </span>
-                            <span className="text-xs text-muted-foreground">/night</span>
-                          </div>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              </motion.div>
-            ))}
-          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  </motion.div>
+                );
+              })}
+            </div>
+          )}
 
-          {/* Empty State */}
-          {filteredHotels.length === 0 && (
+          {/* Empty State - No search yet */}
+          {!loading && hotels.length === 0 && !error && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center py-16"
+            >
+              <div className="flex justify-center mb-4">
+                <div className="flex size-16 items-center justify-center rounded-full bg-muted">
+                  <MapPin className="size-8 text-muted-foreground" />
+                </div>
+              </div>
+              <h3 className="text-lg font-semibold text-foreground">Search for hotels</h3>
+              <p className="text-muted-foreground mt-1">
+                Enter a city name above and click Search to find the best deals
+              </p>
+            </motion.div>
+          )}
+
+          {/* Empty State - Search returned no results */}
+          {!loading && hotels.length > 0 && filteredHotels.length === 0 && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
