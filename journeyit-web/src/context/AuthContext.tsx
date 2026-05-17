@@ -1,12 +1,20 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import {
+  onAuthStateChanged,
+  signOut,
+  sendPasswordResetEmail,
+  signInWithPopup,
+  GoogleAuthProvider,
+  type User,
+  type AuthError,
+} from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import {
   login as apiLogin,
   register as apiRegister,
   logout as apiLogout,
   getStoredUser,
-  isAuthenticated,
+  isAuthenticated as checkIsAuthenticated,
   refreshAccessToken,
   type AuthResponse,
 } from "@/lib/api";
@@ -27,6 +35,7 @@ interface AuthContextType {
   authUser: AuthUser | null;
   loading: boolean;
   isAuthenticated: boolean;
+  error: string | null;
   login: (email: string, password: string) => Promise<AuthResponse>;
   register: (data: {
     email: string;
@@ -36,14 +45,43 @@ interface AuthContextType {
     phone?: string;
   }) => Promise<AuthResponse>;
   logout: () => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
+  resetPassword: (email: string) => Promise<void>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
+
+function getErrorMessage(error: AuthError): string {
+  switch (error.code) {
+    case "auth/invalid-email":
+      return "Invalid email address.";
+    case "auth/user-disabled":
+      return "This account has been disabled.";
+    case "auth/user-not-found":
+      return "No account found with this email.";
+    case "auth/wrong-password":
+      return "Incorrect password.";
+    case "auth/invalid-credential":
+      return "Invalid email or password.";
+    case "auth/email-already-in-use":
+      return "An account with this email already exists.";
+    case "auth/weak-password":
+      return "Password should be at least 6 characters.";
+    case "auth/too-many-requests":
+      return "Too many failed attempts. Please try again later.";
+    case "auth/popup-closed-by-user":
+      return "Login cancelled.";
+    default:
+      return error.message || "An error occurred. Please try again.";
+  }
+}
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(getStoredUser());
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (u) => {
@@ -51,7 +89,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false);
     });
 
-    // Try refreshing JWT token on mount if we have one
     const token = localStorage.getItem("refresh_token");
     if (token) {
       refreshAccessToken()
@@ -68,13 +105,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return unsub;
   }, []);
 
-  const handleLogin = useCallback(async (email: string, password: string) => {
-    const result = await apiLogin({ email, password });
-    setAuthUser(result.user);
-    return result;
+  const clearError = () => setError(null);
+
+  const login = useCallback(async (email: string, password: string) => {
+    try {
+      setError(null);
+      const result = await apiLogin({ email, password });
+      setAuthUser(result.user);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Login failed";
+      setError(message);
+      throw err;
+    }
   }, []);
 
-  const handleRegister = useCallback(
+  const register = useCallback(
     async (data: {
       email: string;
       password: string;
@@ -82,24 +128,51 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       last_name: string;
       phone?: string;
     }) => {
-      const result = await apiRegister(data);
-      setAuthUser(result.user);
-      return result;
+      try {
+        setError(null);
+        const result = await apiRegister(data);
+        setAuthUser(result.user);
+        return result;
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Registration failed";
+        setError(message);
+        throw err;
+      }
     },
     []
   );
 
-  const handleLogout = useCallback(async () => {
+  const logout = useCallback(async () => {
     try {
+      setError(null);
       await signOut(auth);
-    } catch {
-      // Firebase signout may fail if not initialized
-    }
+    } catch {}
     apiLogout();
     setAuthUser(null);
   }, []);
 
-  const isAuth = isAuthenticated();
+  const loginWithGoogle = async () => {
+    try {
+      setError(null);
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      setError(getErrorMessage(err as AuthError));
+      throw err;
+    }
+  };
+
+  const resetPassword = async (email: string) => {
+    try {
+      setError(null);
+      await sendPasswordResetEmail(auth, email);
+    } catch (err) {
+      setError(getErrorMessage(err as AuthError));
+      throw err;
+    }
+  };
+
+  const isAuth = checkIsAuthenticated();
 
   return (
     <AuthContext.Provider
@@ -108,9 +181,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         authUser,
         loading,
         isAuthenticated: isAuth,
-        login: handleLogin,
-        register: handleRegister,
-        logout: handleLogout,
+        error,
+        login,
+        register,
+        logout,
+        loginWithGoogle,
+        resetPassword,
+        clearError,
       }}
     >
       {!loading && children}

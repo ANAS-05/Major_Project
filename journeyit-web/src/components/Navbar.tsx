@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Menu, Plane, LogOut, User, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ const navLinks = [
   { label: "Home", href: "/" },
   { label: "Flights", href: "/flights" },
   { label: "Hotels", href: "/hotels" },
+  { label: "AI Chat", href: "/chat" },
   { label: "Contact", href: "/contact" },
 ];
 
@@ -26,6 +27,7 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user, logout } = useAuth();
   const { pathname } = useLocation();
+  const navigate = useNavigate();
 
   return (
     <motion.header
@@ -96,7 +98,10 @@ export default function Navbar() {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator className="bg-border" />
-                <DropdownMenuItem className="cursor-pointer text-muted-foreground focus:text-foreground">
+                <DropdownMenuItem
+                  className="cursor-pointer text-muted-foreground focus:text-foreground"
+                  onClick={() => navigate("/profile")}
+                >
                   <User className="mr-2 size-4 text-muted-foreground" />
                   Profile
                 </DropdownMenuItem>
@@ -111,12 +116,18 @@ export default function Navbar() {
             </DropdownMenu>
           ) : (
             <div className="hidden items-center gap-2 sm:flex">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={() => navigate("/login")}
+              >
                 Sign In
               </Button>
               <Button
                 size="sm"
                 className="rounded-lg bg-primary text-primary-foreground hover:bg-primary/90"
+                onClick={() => navigate("/register")}
               >
                 Get Started
               </Button>
@@ -159,25 +170,51 @@ export default function Navbar() {
                     })}
                   </div>
                 </nav>
-                <div className="border-t border-border p-4">
+                <div className="border-t border-border p-4 space-y-2">
                   {user ? (
-                    <Button
-                      variant="outline"
-                      className="w-full border-border text-foreground"
-                      onClick={() => {
-                        logout();
-                        setMobileOpen(false);
-                      }}
-                    >
-                      <LogOut className="mr-2 size-4" />
-                      Log out
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        className="w-full border-border text-foreground"
+                        onClick={() => {
+                          navigate("/profile");
+                          setMobileOpen(false);
+                        }}
+                      >
+                        <User className="mr-2 size-4" />
+                        Profile
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full border-border text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          logout();
+                          setMobileOpen(false);
+                        }}
+                      >
+                        <LogOut className="mr-2 size-4" />
+                        Log out
+                      </Button>
+                    </>
                   ) : (
                     <div className="flex flex-col gap-2">
-                      <Button variant="outline" className="w-full border-border">
+                      <Button
+                        variant="outline"
+                        className="w-full border-border"
+                        onClick={() => {
+                          navigate("/login");
+                          setMobileOpen(false);
+                        }}
+                      >
                         Sign In
                       </Button>
-                      <Button className="w-full bg-primary text-primary-foreground hover:bg-primary/90">
+                      <Button
+                        className="w-full bg-primary text-primary-foreground hover:bg-primary/90"
+                        onClick={() => {
+                          navigate("/register");
+                          setMobileOpen(false);
+                        }}
+                      >
                         Get Started
                       </Button>
                     </div>

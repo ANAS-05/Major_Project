@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Carousel,
   CarouselContent,
@@ -30,7 +31,7 @@ type AuthMode = "login" | "register";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login, register, isAuthenticated } = useAuth();
+  const { login, register, isAuthenticated, loginWithGoogle, error: ctxError, clearError } = useAuth();
 
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
@@ -60,6 +61,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    clearError();
     setError(null);
     setLoading(true);
 
@@ -67,12 +69,7 @@ export default function LoginPage() {
       if (mode === "login") {
         await login(email, password);
       } else {
-        await register({
-          email,
-          password,
-          first_name: firstName,
-          last_name: lastName,
-        });
+        await register({ email, password, first_name: firstName, last_name: lastName });
       }
       navigate("/");
     } catch (err) {
@@ -82,9 +79,19 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = () => {
-    // Google login via Firebase is separate - can be implemented later
+  const handleGoogleLogin = async () => {
+    setLoading(true);
+    try {
+      await loginWithGoogle();
+      navigate("/");
+    } catch {
+      // Error is handled in AuthContext
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const displayError = error || ctxError;
 
   return (
     <div className="min-h-screen bg-background">
@@ -178,11 +185,11 @@ export default function LoginPage() {
                   </p>
                 </div>
 
-                {error && (
-                  <div className="mb-4 flex items-center gap-2 rounded-lg border border-destructive/50 bg-destructive/10 p-3 text-destructive text-sm">
-                    <AlertCircle className="size-4 shrink-0" />
-                    {error}
-                  </div>
+                {displayError && (
+                  <Alert variant="destructive" className="mb-4">
+                    <AlertCircle className="size-4" />
+                    <AlertDescription>{displayError}</AlertDescription>
+                  </Alert>
                 )}
 
                 {/* Google Login Button */}
@@ -191,6 +198,7 @@ export default function LoginPage() {
                   variant="outline"
                   size="lg"
                   onClick={handleGoogleLogin}
+                  disabled={loading}
                   className="w-full h-11 border-input hover:bg-muted"
                 >
                   <svg className="size-5 mr-2" viewBox="0 0 24 24">
@@ -285,7 +293,7 @@ export default function LoginPage() {
                       </Label>
                       {mode === "login" && (
                         <Link
-                          to="#"
+                          to="/forgot-password"
                           className="text-xs text-primary hover:underline"
                         >
                           Forgot password?
@@ -321,8 +329,8 @@ export default function LoginPage() {
                   <Button
                     type="submit"
                     size="lg"
-                    className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90"
                     disabled={loading}
+                    className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
                     {loading ? (
                       <Loader2 className="size-4 animate-spin" />
@@ -342,7 +350,7 @@ export default function LoginPage() {
                         Don&apos;t have an account?{" "}
                         <button
                           type="button"
-                          onClick={() => { setMode("register"); setError(null); }}
+                          onClick={() => { setMode("register"); clearError(); setError(null); }}
                           className="text-primary hover:underline font-medium"
                         >
                           Sign up
@@ -353,7 +361,7 @@ export default function LoginPage() {
                         Already have an account?{" "}
                         <button
                           type="button"
-                          onClick={() => { setMode("login"); setError(null); }}
+                          onClick={() => { setMode("login"); clearError(); setError(null); }}
                           className="text-primary hover:underline font-medium"
                         >
                           Sign in
