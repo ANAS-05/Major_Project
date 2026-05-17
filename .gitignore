@@ -32,6 +32,9 @@ ml_models/
 *.h5
 *.model
 
+# deprecated CRA frontend
+journeyit-frontend/
+
 # specific large files (extra safety)
 flight_price_model.pkl
 model_columns.pkl
