@@ -19,6 +19,7 @@ const navLinks = [
   { label: "Home", href: "/" },
   { label: "Flights", href: "/flights" },
   { label: "Hotels", href: "/hotels" },
+  { label: "AI Chat", href: "/chat" },
   { label: "Contact", href: "/contact" },
 ];
 
