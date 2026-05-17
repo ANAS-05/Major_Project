@@ -1,0 +1,39 @@
+# JourneyIt Backend Dependencies
+# ================================
+# Install with: pip install -r requirements.txt
+
+# Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
+# Data Validation
+pydantic>=2.9.0
+
+# Machine Learning (using pre-built wheels)
+scikit-learn>=1.5.0
+joblib>=1.4.0
+pandas>=2.2.0
+numpy>=1.26.0
+
+# Optional: LSTM/Deep Learning (uncomment if using LSTM models)
+# tensorflow>=2.18.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# HTTP Requests
+requests>=2.32.0
+
+# Optional: Google Generative AI (for enhanced chat)
+# google-genai>=0.8.0
+
+# Additional dependencies
+h11>=0.14.0
+click>=8.1.0
+starlette>=0.38.0
+typing-extensions>=4.12.0
+annotated-types>=0.7.0
+pydantic-core>=2.23.0

@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Optional
@@ -74,9 +74,17 @@ if LSTM_AVAILABLE:
 else:
     print("⚠️  TensorFlow not installed. Using RandomForest only.")
 
-AVIATIONSTACK_KEY = os.getenv("AVIATIONSTACK_KEY", "fd3a8e6dcf5474b760fd5abe45346824")
-GEMINI_KEY        = os.getenv("GEMINI_KEY", "AIzaSyBTmVUCDW-EtHOUwtaMNL_OYB9mlCpXwJo")
-RAPIDAPI_KEY      = os.getenv("RAPIDAPI_KEY", "4ad91a7578msh8cacda2f26d0de6p15a52cjsn621eaa00132e")
+# Primary API Keys
+AVIATIONSTACK_KEY = os.getenv("AVIATIONSTACK_KEY", "")
+GEMINI_KEY        = os.getenv("GEMINI_KEY", "")
+RAPIDAPI_KEY      = os.getenv("RAPIDAPI_KEY", "")
+SEARCHAPI_KEY     = os.getenv("SEARCHAPI_KEY", "")
+
+# Secondary/Fallback API Keys
+AVIATIONSTACK_KEY_SECONDARY = os.getenv("AVIATIONSTACK_KEY_SECONDARY", "")
+GEMINI_KEY_SECONDARY        = os.getenv("GEMINI_KEY_SECONDARY", "")
+RAPIDAPI_KEY_SECONDARY      = os.getenv("RAPIDAPI_KEY_SECONDARY", "")
+SEARCHAPI_KEY_SECONDARY     = os.getenv("SEARCHAPI_KEY_SECONDARY", "")
 
 # ── Email OTP config ──────────────────────────────────────────
 # Add to your .env:  EMAIL_USER=your@gmail.com  EMAIL_PASS=your_app_password
@@ -87,8 +95,14 @@ EMAIL_PASS = os.getenv("EMAIL_PASS", "")
 _otp_store: dict = {}
 
 _gemini_client = None
-if _GEMINI_PKG and GEMINI_KEY:
-    _gemini_client = _genai_sdk.Client(api_key=GEMINI_KEY)
+_gemini_client_secondary = None
+if _GEMINI_PKG:
+    if GEMINI_KEY:
+        _gemini_client = _genai_sdk.Client(api_key=GEMINI_KEY)
+        print("✅ Gemini PRIMARY client initialized")
+    if GEMINI_KEY_SECONDARY:
+        _gemini_client_secondary = _genai_sdk.Client(api_key=GEMINI_KEY_SECONDARY)
+        print("✅ Gemini SECONDARY client initialized")
 
 # ─────────────────────────────────────────────────
 # REQUEST MODELS
@@ -111,6 +125,13 @@ class FlightSearch(BaseModel):
 
 class HotelSearch(BaseModel):
     city: str
+
+
+class SearchApiHotelSearch(BaseModel):
+    city: str
+    check_in_date: Optional[str] = None   # Format: YYYY-MM-DD
+    check_out_date: Optional[str] = None  # Format: YYYY-MM-DD
+    adults: Optional[int] = 2
 
 
 class ChatRequest(BaseModel):
@@ -920,27 +941,46 @@ def _build_rule_response(ctx: dict) -> str:
 
 
 def _generate_reply(query: str, ctx: dict) -> str:
+    prompt = (
+        f"{SYSTEM_PROMPT}\n\n"
+        f"Flight Data:\n"
+        f"- Route: {ctx['route']}\n"
+        f"- Current Price: ₹{ctx['current_price']:,}\n"
+        f"- Price forecast next 7 days: {['₹'+str(p) for p in ctx['future_prices']]}\n"
+        f"- Trend: {ctx['trend']} ({abs(ctx['change_pct']):.1f}% change over 5 days)\n"
+        f"- AI Decision: {ctx['decision']}\n"
+        f"- Confidence: {ctx['confidence']}%\n\n"
+        f"User query: \"{query}\"\n\n"
+        "Respond as JourneyIt AI:"
+    )
+    
+    # Try PRIMARY Gemini key
     if _gemini_client:
         try:
-            prompt = (
-                f"{SYSTEM_PROMPT}\n\n"
-                f"Flight Data:\n"
-                f"- Route: {ctx['route']}\n"
-                f"- Current Price: ₹{ctx['current_price']:,}\n"
-                f"- Price forecast next 7 days: {['₹'+str(p) for p in ctx['future_prices']]}\n"
-                f"- Trend: {ctx['trend']} ({abs(ctx['change_pct']):.1f}% change over 5 days)\n"
-                f"- AI Decision: {ctx['decision']}\n"
-                f"- Confidence: {ctx['confidence']}%\n\n"
-                f"User query: \"{query}\"\n\n"
-                "Respond as JourneyIt AI:"
-            )
+            print("[gemini] Trying PRIMARY key...")
             resp = _gemini_client.models.generate_content(
                 model="models/gemini-2.5-flash",
                 contents=prompt,
             )
+            print("[gemini] ✓ PRIMARY key succeeded")
             return resp.text.strip()
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[gemini] ✗ PRIMARY key failed: {e}")
+    
+    # Try SECONDARY Gemini key if PRIMARY failed
+    if _gemini_client_secondary:
+        try:
+            print("[gemini] Trying SECONDARY key...")
+            resp = _gemini_client_secondary.models.generate_content(
+                model="models/gemini-2.5-flash",
+                contents=prompt,
+            )
+            print("[gemini] ✓ SECONDARY key succeeded")
+            return resp.text.strip()
+        except Exception as e:
+            print(f"[gemini] ✗ SECONDARY key failed: {e}")
+    
+    # Fall back to rule-based response
     return _build_rule_response(ctx)
 
 
@@ -1111,31 +1151,61 @@ def predict_price(data: FlightRequest):
 
 
 # ── SEARCH FLIGHTS ───────────────────────────────
+def _fetch_aviationstack_flights(from_iata: str, to_iata: str, api_key: str) -> list:
+    """
+    Fetch flights from AviationStack API.
+    Returns list of flight data or raises exception on failure.
+    """
+    res = requests.get(
+        "http://api.aviationstack.com/v1/flights",
+        params={"access_key": api_key,
+                "dep_iata": from_iata, "arr_iata": to_iata},
+        timeout=5,
+    )
+    res.raise_for_status()
+    data = res.json()
+    
+    flights = []
+    for f in data.get("data", [])[:6]:
+        flights.append({
+            "airline":       f.get("airline", {}).get("name", "Unknown"),
+            "flight_number": f.get("flight",  {}).get("iata", "N/A"),
+            "departure":     f.get("departure",{}).get("scheduled"),
+            "arrival":       f.get("arrival",  {}).get("scheduled"),
+            "status":        f.get("flight_status", "scheduled"),
+        })
+    return flights
+
+
 @app.post("/search-flights")
 def search_flights(data: FlightSearch):
     from_city = IATA_TO_ML_CITY.get(data.from_iata, None)
     to_city   = IATA_TO_ML_CITY.get(data.to_iata,   None)
     base_dur  = _route_duration(data.from_iata, data.to_iata)
 
-    # Try live API first
+    # Try live API with fallback
     api_flights = []
-    try:
-        res = requests.get(
-            "http://api.aviationstack.com/v1/flights",
-            params={"access_key": AVIATIONSTACK_KEY,
-                    "dep_iata": data.from_iata, "arr_iata": data.to_iata},
-            timeout=5,
-        )
-        for f in res.json().get("data", [])[:6]:
-            api_flights.append({
-                "airline":       f.get("airline", {}).get("name", "Unknown"),
-                "flight_number": f.get("flight",  {}).get("iata", "N/A"),
-                "departure":     f.get("departure",{}).get("scheduled"),
-                "arrival":       f.get("arrival",  {}).get("scheduled"),
-                "status":        f.get("flight_status", "scheduled"),
-            })
-    except Exception:
-        pass
+    api_key_used = None
+    
+    # Try PRIMARY key
+    if AVIATIONSTACK_KEY:
+        try:
+            print(f"[aviationstack] Trying PRIMARY key for {data.from_iata}->{data.to_iata}...")
+            api_flights = _fetch_aviationstack_flights(data.from_iata, data.to_iata, AVIATIONSTACK_KEY)
+            api_key_used = "primary"
+            print(f"[aviationstack] ✓ PRIMARY key succeeded")
+        except Exception as e:
+            print(f"[aviationstack] ✗ PRIMARY key failed: {e}")
+    
+    # Try SECONDARY key if PRIMARY failed
+    if not api_flights and AVIATIONSTACK_KEY_SECONDARY:
+        try:
+            print(f"[aviationstack] Trying SECONDARY key for {data.from_iata}->{data.to_iata}...")
+            api_flights = _fetch_aviationstack_flights(data.from_iata, data.to_iata, AVIATIONSTACK_KEY_SECONDARY)
+            api_key_used = "secondary"
+            print(f"[aviationstack] ✓ SECONDARY key succeeded")
+        except Exception as e:
+            print(f"[aviationstack] ✗ SECONDARY key failed: {e}")
 
     # Build enriched flight list
     enriched = []
@@ -1315,16 +1385,18 @@ _BOOKING_HOST = "booking-com.p.rapidapi.com"
 _BOOKING_BASE = f"https://{_BOOKING_HOST}/v1"
 
 
-def _booking_headers() -> dict:
-    if not RAPIDAPI_KEY:
+def _booking_headers(api_key: str = None) -> dict:
+    """Build headers with given API key."""
+    key = api_key or RAPIDAPI_KEY
+    if not key:
         raise RuntimeError("RAPIDAPI_KEY not set in .env")
     return {
-        "X-RapidAPI-Key":  RAPIDAPI_KEY,
+        "X-RapidAPI-Key":  key,
         "X-RapidAPI-Host": _BOOKING_HOST,
     }
 
 
-def _resolve_dest_id(city: str, headers: dict) -> str:
+def _resolve_dest_id(city: str, api_key: str = None) -> str:
     """
     1. Check the local HOTEL_DEST_IDS cache first (zero API calls).
     2. Fall back to /v1/hotels/locations for cities not in the cache.
@@ -1333,27 +1405,27 @@ def _resolve_dest_id(city: str, headers: dict) -> str:
     if cached:
         return cached
 
+    headers = _booking_headers(api_key)
     res  = requests.get(
         f"{_BOOKING_BASE}/hotels/locations",
         headers=headers,
         params={"name": city, "locale": "en-gb"},
         timeout=8,
     )
+    res.raise_for_status()
     data = res.json()
     if isinstance(data, list) and data:
         return str(data[0].get("dest_id", ""))
     return ""
 
 
-def _search_booking(city: str) -> list[dict]:
+def _search_booking_with_key(city: str, api_key: str) -> list[dict]:
     """
-    Full Booking.com hotel search:
-      Step 1 — resolve dest_id (cache → locations API)
-      Step 2 — fetch hotels via /v1/hotels/search
-    Raises RuntimeError on any failure so the caller can fall back to mock.
+    Search Booking.com with a specific API key.
+    Raises exception on failure.
     """
-    headers  = _booking_headers()
-    dest_id  = _resolve_dest_id(city, headers)
+    headers = _booking_headers(api_key)
+    dest_id = _resolve_dest_id(city, api_key)
 
     if not dest_id:
         raise RuntimeError(f"No dest_id found for '{city}'")
@@ -1386,28 +1458,84 @@ def _search_booking(city: str) -> list[dict]:
     if not results:
         raise RuntimeError("API returned empty result list")
 
-    hotels = []
-    for h in results:
-        # Booking.com can return price in several fields
-        price = (
-            h.get("min_total_price") or
-            h.get("composite_price_breakdown", {})
-             .get("gross_amount_per_night", {})
-             .get("value") or
-            h.get("price_breakdown", {}).get("all_inclusive_price") or
-            0
-        )
-        # review_score is on a 10-point scale → divide by 2 for 0-5
-        rating = float(h.get("review_score") or 0) / 2.0
-        photo  = h.get("max_photo_url") or h.get("main_photo_url") or ""
-        hotels.append(_normalise_hotel(
-            h.get("hotel_name"),
-            price,
-            rating,
-            h.get("address") or h.get("city_name_en", ""),
-            photo,
-        ))
-    return hotels
+    return results
+
+
+def _search_booking(city: str) -> list[dict]:
+    """
+    Full Booking.com hotel search with fallback:
+      Try PRIMARY key first → SECONDARY key if PRIMARY fails
+    Raises RuntimeError on any failure so the caller can fall back to mock.
+    """
+    errors = []
+    
+    # Try PRIMARY key
+    if RAPIDAPI_KEY:
+        try:
+            print(f"[booking.com] Trying PRIMARY key for '{city}'...")
+            results = _search_booking_with_key(city, RAPIDAPI_KEY)
+            print(f"[booking.com] ✓ PRIMARY key succeeded for '{city}'")
+            # Process results
+            hotels = []
+            for h in results:
+                price = (
+                    h.get("min_total_price") or
+                    h.get("composite_price_breakdown", {})
+                    .get("gross_amount_per_night", {})
+                    .get("value") or
+                    h.get("price_breakdown", {}).get("all_inclusive_price") or
+                    0
+                )
+                rating = float(h.get("review_score") or 0) / 2.0
+                photo = h.get("max_photo_url") or h.get("main_photo_url") or ""
+                hotels.append(_normalise_hotel(
+                    h.get("hotel_name"),
+                    price,
+                    rating,
+                    h.get("address") or h.get("city_name_en", ""),
+                    photo,
+                ))
+            return hotels
+        except Exception as e:
+            error_msg = f"PRIMARY key failed: {str(e)}"
+            print(f"[booking.com] ✗ {error_msg}")
+            errors.append(error_msg)
+    
+    # Try SECONDARY key if PRIMARY failed
+    if RAPIDAPI_KEY_SECONDARY:
+        try:
+            print(f"[booking.com] Trying SECONDARY key for '{city}'...")
+            results = _search_booking_with_key(city, RAPIDAPI_KEY_SECONDARY)
+            print(f"[booking.com] ✓ SECONDARY key succeeded for '{city}'")
+            # Process results
+            hotels = []
+            for h in results:
+                price = (
+                    h.get("min_total_price") or
+                    h.get("composite_price_breakdown", {})
+                    .get("gross_amount_per_night", {})
+                    .get("value") or
+                    h.get("price_breakdown", {}).get("all_inclusive_price") or
+                    0
+                )
+                rating = float(h.get("review_score") or 0) / 2.0
+                photo = h.get("max_photo_url") or h.get("main_photo_url") or ""
+                hotels.append(_normalise_hotel(
+                    h.get("hotel_name"),
+                    price,
+                    rating,
+                    h.get("address") or h.get("city_name_en", ""),
+                    photo,
+                ))
+            return hotels
+        except Exception as e:
+            error_msg = f"SECONDARY key failed: {str(e)}"
+            print(f"[booking.com] ✗ {error_msg}")
+            errors.append(error_msg)
+    
+    # If both keys failed, raise error
+    print(f"[booking.com] ✗ All Booking.com keys failed for '{city}'")
+    raise RuntimeError(f"All Booking.com API keys failed: {errors}")
 
 
 # City → realistic per-night price base (INR) — higher-tier cities cost more
@@ -1587,3 +1715,119 @@ def search_hotels(data: HotelSearch):
         hotels[0]["tag"]         = "🔥 BEST VALUE"
 
     return {"city": city, "hotels": hotels[:6], "source": source}
+
+
+# ── SEARCH HOTELS VIA SEARCHAPI (Google Hotels) ─────────────────────────────────
+def _build_searchapi_url(city: str, check_in: str, check_out: str, adults: int, api_key: str) -> str:
+    """Build SearchAPI URL with given parameters."""
+    return (
+        f"https://www.searchapi.io/api/v1/search"
+        f"?engine=google_hotels"
+        f"&q=Hotels+in+{city.replace(' ', '+')}"
+        f"&check_in_date={check_in}"
+        f"&check_out_date={check_out}"
+        f"&adults={adults}"
+        f"&api_key={api_key}"
+    )
+
+
+def _fetch_searchapi_hotels(city: str, check_in: str, check_out: str, adults: int, api_key: str) -> dict:
+    """
+    Fetch hotels from SearchAPI.
+    Raises exception if request fails.
+    """
+    search_url = _build_searchapi_url(city, check_in, check_out, adults, api_key)
+    response = requests.get(search_url, timeout=15)
+    response.raise_for_status()
+    return response.json()
+
+
+@app.post("/search-hotels-searchapi")
+def search_hotels_searchapi(data: SearchApiHotelSearch):
+    """
+    Search hotels using SearchAPI.io Google Hotels engine.
+    Returns real hotel data from Google Travel with rich details.
+    
+    Uses PRIMARY key first, falls back to SECONDARY key if PRIMARY fails.
+    """
+    # Check if at least one key is configured
+    if not SEARCHAPI_KEY and not SEARCHAPI_KEY_SECONDARY:
+        raise HTTPException(
+            status_code=500, 
+            detail="No SearchAPI keys configured. Set SEARCHAPI_KEY or SEARCHAPI_KEY_SECONDARY in .env"
+        )
+    
+    city = data.city.strip()
+    
+    # Use provided dates or default to tomorrow/day-after
+    if data.check_in_date and data.check_out_date:
+        check_in = data.check_in_date
+        check_out = data.check_out_date
+    else:
+        tomorrow = date.today() + timedelta(days=1)
+        day_after = date.today() + timedelta(days=3)
+        check_in = str(tomorrow)
+        check_out = str(day_after)
+    
+    search_data = None
+    used_key = None
+    errors = []
+    
+    # Try PRIMARY key first
+    if SEARCHAPI_KEY:
+        try:
+            print(f"[searchapi] Trying PRIMARY key for '{city}'...")
+            search_data = _fetch_searchapi_hotels(city, check_in, check_out, data.adults, SEARCHAPI_KEY)
+            used_key = "primary"
+            print(f"[searchapi] ✓ PRIMARY key succeeded for '{city}'")
+        except requests.exceptions.HTTPError as e:
+            error_msg = f"PRIMARY key failed: HTTP {e.response.status_code}"
+            print(f"[searchapi] ✗ {error_msg}")
+            errors.append(error_msg)
+        except requests.exceptions.RequestException as e:
+            error_msg = f"PRIMARY key failed: {str(e)}"
+            print(f"[searchapi] ✗ {error_msg}")
+            errors.append(error_msg)
+    
+    # Try SECONDARY key if PRIMARY failed and secondary is available
+    if search_data is None and SEARCHAPI_KEY_SECONDARY:
+        try:
+            print(f"[searchapi] Trying SECONDARY key for '{city}'...")
+            search_data = _fetch_searchapi_hotels(city, check_in, check_out, data.adults, SEARCHAPI_KEY_SECONDARY)
+            used_key = "secondary"
+            print(f"[searchapi] ✓ SECONDARY key succeeded for '{city}'")
+        except requests.exceptions.HTTPError as e:
+            error_msg = f"SECONDARY key failed: HTTP {e.response.status_code}"
+            print(f"[searchapi] ✗ {error_msg}")
+            errors.append(error_msg)
+        except requests.exceptions.RequestException as e:
+            error_msg = f"SECONDARY key failed: {str(e)}"
+            print(f"[searchapi] ✗ {error_msg}")
+            errors.append(error_msg)
+    
+    # If both keys failed, raise error
+    if search_data is None:
+        print(f"[searchapi] ✗ All SearchAPI keys failed for '{city}'")
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "error": "Failed to fetch hotels from SearchAPI",
+                "attempted_keys": ["primary" if SEARCHAPI_KEY else None, "secondary" if SEARCHAPI_KEY_SECONDARY else None],
+                "errors": errors
+            }
+        )
+    
+    # Return the full SearchAPI response
+    return {
+        "success": True,
+        "city": city,
+        "check_in_date": check_in,
+        "check_out_date": check_out,
+        "adults": data.adults,
+        "total_results": search_data.get("search_information", {}).get("total_results", 0),
+        "search_metadata": search_data.get("search_metadata", {}),
+        "search_parameters": search_data.get("search_parameters", {}),
+        "properties": search_data.get("properties", []),
+        "source": "searchapi",
+        "key_used": used_key  # Indicates which key succeeded
+    }
