@@ -1,57 +1,45 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Plane, ArrowRight, Mail, Lock, Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Plane, ArrowRight, Mail, Lock, Eye, EyeOff, User, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  type CarouselApi,
-} from "@/components/ui/carousel";
-import Autoplay from "embla-carousel-autoplay";
 import { useAuth } from "@/context/AuthContext";
 
-// Import local images from assets
-import carousel1 from "@/assets/download.jfif";
-import carousel2 from "@/assets/download (1).jfif";
-import carousel3 from "@/assets/download (2).jfif";
-
-const carouselImages = [
-  { src: carousel1, alt: "Beautiful destination" },
-  { src: carousel2, alt: "Travel adventure" },
-  { src: carousel3, alt: "Explore the world" },
-];
-
-export default function LoginPage() {
+export default function RegisterPage() {
   const navigate = useNavigate();
-  const { login, loginWithGoogle, error, clearError } = useAuth();
-  const [api, setApi] = useState<CarouselApi>();
-  const [current, setCurrent] = useState(0);
+  const { register, loginWithGoogle, error, clearError } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [validationError, setValidationError] = useState("");
 
-  useEffect(() => {
-    if (!api) return;
-    setCurrent(api.selectedScrollSnap());
-    api.on("select", () => {
-      setCurrent(api.selectedScrollSnap());
-    });
-  }, [api]);
-
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     clearError();
+    setValidationError("");
+
+    if (password !== confirmPassword) {
+      setValidationError("Passwords do not match");
+      return;
+    }
+
+    if (password.length < 6) {
+      setValidationError("Password must be at least 6 characters");
+      return;
+    }
+
     setIsLoading(true);
     try {
-      await login(email, password);
+      await register(email, password, name);
       navigate("/");
     } catch {
       // Error is handled in AuthContext
@@ -60,7 +48,7 @@ export default function LoginPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleGoogleRegister = async () => {
     setIsLoading(true);
     try {
       await loginWithGoogle();
@@ -75,68 +63,31 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-background">
       <div className="grid min-h-screen lg:grid-cols-2">
-        {/* ── LEFT: Image Carousel ── */}
-        <div className="relative hidden lg:block h-screen overflow-hidden">
-          <Carousel
-            setApi={setApi}
-            opts={{ loop: true }}
-            plugins={[
-              Autoplay({
-                delay: 5000,
-                stopOnInteraction: false,
-              }),
-            ]}
-            className="w-full h-full"
-          >
-            <CarouselContent className="h-full ml-0">
-              {carouselImages.map((image, index) => (
-                <CarouselItem key={index} className="h-full pl-0">
-                  <div className="relative h-full w-full">
-                    <img
-                      src={image.src}
-                      alt={image.alt}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-background/20 to-transparent" />
-                  </div>
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-          </Carousel>
-
-          {/* Logo overlay */}
-          <div className="absolute top-8 left-8 z-10">
-            <Link to="/" className="flex items-center gap-2">
-              <Plane className="size-6 text-primary" />
-              <span className="text-xl font-bold text-primary-foreground drop-shadow-lg">
-                Journey<span className="text-primary">It</span>
-              </span>
-            </Link>
-          </div>
-
-          {/* Carousel indicators */}
-          <div className="absolute bottom-8 left-8 right-8 z-10 flex items-center justify-between">
-            <div className="flex gap-2">
-              {carouselImages.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => api?.scrollTo(index)}
-                  className={`h-1 rounded-full transition-all duration-300 ${
-                    index === current
-                      ? "w-8 bg-primary"
-                      : "w-4 bg-primary-foreground/30 hover:bg-primary-foreground/50"
-                  }`}
-                  aria-label={`Go to slide ${index + 1}`}
-                />
-              ))}
-            </div>
-            <p className="text-sm text-primary-foreground/80 drop-shadow">
-              {carouselImages[current]?.alt}
-            </p>
+        {/* ── LEFT: Decorative Section ── */}
+        <div className="relative hidden lg:block h-screen overflow-hidden bg-secondary">
+          <div className="absolute inset-0 flex flex-col justify-center items-center p-12 text-center">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <div className="flex items-center gap-2 justify-center mb-8">
+                <Plane className="size-10 text-primary" />
+                <span className="text-3xl font-bold text-foreground">
+                  Journey<span className="text-primary">It</span>
+                </span>
+              </div>
+              <h2 className="text-2xl font-bold text-foreground mb-4">
+                Start Your Journey
+              </h2>
+              <p className="text-muted-foreground max-w-md mx-auto">
+                Join thousands of travelers who use JourneyIt to find the best deals and book with confidence.
+              </p>
+            </motion.div>
           </div>
         </div>
 
-        {/* ── RIGHT: Login Form ── */}
+        {/* ── RIGHT: Register Form ── */}
         <div className="flex flex-col justify-center items-center p-6 sm:p-8 lg:p-12">
           {/* Mobile logo */}
           <div className="lg:hidden mb-8">
@@ -158,26 +109,28 @@ export default function LoginPage() {
               <CardContent className="p-6 sm:p-8">
                 <div className="text-center mb-6">
                   <h1 className="text-2xl font-bold text-foreground">
-                    Welcome back
+                    Create an account
                   </h1>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Sign in to continue your journey
+                    Enter your details to get started
                   </p>
                 </div>
 
-                {error && (
+                {(error || validationError) && (
                   <Alert variant="destructive" className="mb-4">
                     <AlertCircle className="size-4" />
-                    <AlertDescription>{error}</AlertDescription>
+                    <AlertDescription>
+                      {error || validationError}
+                    </AlertDescription>
                   </Alert>
                 )}
 
-                {/* Google Login Button */}
+                {/* Google Register Button */}
                 <Button
                   type="button"
                   variant="outline"
                   size="lg"
-                  onClick={handleGoogleLogin}
+                  onClick={handleGoogleRegister}
                   disabled={isLoading}
                   className="w-full h-11 border-input hover:bg-muted"
                 >
@@ -213,8 +166,26 @@ export default function LoginPage() {
                   </div>
                 </div>
 
-                {/* Email/Password Form */}
-                <form onSubmit={handleLogin} className="space-y-4">
+                {/* Registration Form */}
+                <form onSubmit={handleRegister} className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-sm font-medium text-foreground">
+                      Full Name
+                    </Label>
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                      <Input
+                        id="name"
+                        type="text"
+                        placeholder="John Doe"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        required
+                        className="h-11 pl-10 border-input focus:border-primary focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="email" className="text-sm font-medium text-foreground">
                       Email
@@ -234,26 +205,19 @@ export default function LoginPage() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-sm font-medium text-foreground">
-                        Password
-                      </Label>
-                      <Link
-                        to="/forgot-password"
-                        className="text-xs text-primary hover:underline"
-                      >
-                        Forgot password?
-                      </Link>
-                    </div>
+                    <Label htmlFor="password" className="text-sm font-medium text-foreground">
+                      Password
+                    </Label>
                     <div className="relative">
                       <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                       <Input
                         id="password"
                         type={showPassword ? "text" : "password"}
-                        placeholder="Enter your password"
+                        placeholder="Create a password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         required
+                        minLength={6}
                         className="h-11 pl-10 pr-10 border-input focus:border-primary focus:ring-primary"
                       />
                       <button
@@ -268,6 +232,38 @@ export default function LoginPage() {
                         )}
                       </button>
                     </div>
+                    <p className="text-xs text-muted-foreground">
+                      Must be at least 6 characters
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
+                      Confirm Password
+                    </Label>
+                    <div className="relative">
+                      <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                      <Input
+                        id="confirmPassword"
+                        type={showConfirmPassword ? "text" : "password"}
+                        placeholder="Confirm your password"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        required
+                        className="h-11 pl-10 pr-10 border-input focus:border-primary focus:ring-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      >
+                        {showConfirmPassword ? (
+                          <EyeOff className="size-4" />
+                        ) : (
+                          <Eye className="size-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
 
                   <Button
@@ -276,19 +272,19 @@ export default function LoginPage() {
                     disabled={isLoading}
                     className="w-full h-11 bg-primary text-primary-foreground hover:bg-primary/90"
                   >
-                    {isLoading ? "Signing in..." : "Sign in"}
+                    {isLoading ? "Creating account..." : "Create account"}
                     <ArrowRight className="size-4 ml-2" />
                   </Button>
                 </form>
 
                 <div className="mt-6 text-center text-sm">
                   <p className="text-muted-foreground">
-                    Don&apos;t have an account?{" "}
+                    Already have an account?{" "}
                     <Link
-                      to="/register"
+                      to="/login"
                       className="text-primary hover:underline font-medium"
                     >
-                      Sign up
+                      Sign in
                     </Link>
                   </p>
                 </div>
