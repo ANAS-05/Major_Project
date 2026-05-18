@@ -46,13 +46,20 @@ except ImportError:
 # ─────────────────────────────────────────────────
 app = FastAPI(title="JourneyIt AI API")
 
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*")
+if CORS_ORIGINS == "*":
+    origins = ["*"]
+else:
+    origins = [o.strip() for o in CORS_ORIGINS.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+print(f"[CORS] Allowed origins: {origins}")
 
 # Include auth router
 app.include_router(auth_router)
