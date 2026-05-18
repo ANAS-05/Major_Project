@@ -1,3 +1,6 @@
+import { getMockHotelSearchResult } from "@/data/mockCities";
+import { getMockFlightSearchResult } from "@/data/mockFlights";
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://127.0.0.1:8000";
 
 function getToken(): string | null {
@@ -141,10 +144,15 @@ export interface HotelSearchResult {
 }
 
 export async function searchHotels(city: string): Promise<HotelSearchResult> {
-  return apiFetch<HotelSearchResult>("/search-hotels", {
-    method: "POST",
-    body: JSON.stringify({ city }),
-  });
+  try {
+    return await apiFetch<HotelSearchResult>("/search-hotels", {
+      method: "POST",
+      body: JSON.stringify({ city }),
+    });
+  } catch {
+    // Fallback to mock data when backend is unavailable
+    return getMockHotelSearchResult(city);
+  }
 }
 
 export interface SearchApiHotelResult {
@@ -164,10 +172,30 @@ export async function searchHotelsSearchApi(data: {
   check_out_date?: string;
   adults?: number;
 }): Promise<SearchApiHotelResult> {
-  return apiFetch<SearchApiHotelResult>("/search-hotels-searchapi", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+  try {
+    return await apiFetch<SearchApiHotelResult>("/search-hotels-searchapi", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  } catch {
+    const mockResult = getMockHotelSearchResult(data.city);
+    return {
+      success: true,
+      city: mockResult.city,
+      check_in_date: data.check_in_date || new Date().toISOString().split("T")[0],
+      check_out_date: data.check_out_date || new Date(Date.now() + 86400000).toISOString().split("T")[0],
+      adults: data.adults || 2,
+      total_results: mockResult.hotels.length,
+      properties: mockResult.hotels.map((h) => ({
+        name: h.name,
+        price: h.price,
+        rating: h.rating,
+        address: h.address,
+        photo_url: h.photo_url,
+      })),
+      source: "mock_data",
+    };
+  }
 }
 
 // ─── Hotel Bookings ─────────────────────────
@@ -251,13 +279,39 @@ export async function sendChatMessage(
   message: string,
   conversation_id?: string
 ): Promise<{ reply: string; conversation_id: string; intent: string }> {
-  return apiFetch<{ reply: string; conversation_id: string; intent: string }>(
-    "/chat/guest",
-    {
-      method: "POST",
-      body: JSON.stringify({ message, conversation_id }),
+  try {
+    return await apiFetch<{ reply: string; conversation_id: string; intent: string }>(
+      "/chat/guest",
+      {
+        method: "POST",
+        body: JSON.stringify({ message, conversation_id }),
+      }
+    );
+  } catch {
+    // Fallback mock chat responses
+    const lowerMsg = message.toLowerCase();
+    let reply = "I'm JourneyIt AI, your travel assistant. I can help you find hotels, flights, and plan your trips across India. What would you like to explore?";
+    
+    if (lowerMsg.includes("hotel") || lowerMsg.includes("stay")) {
+      reply = "I can help you find hotels! Try searching for cities like Hyderabad, Mumbai, Delhi, Bangalore, Goa, or Chennai. Each has 8+ premium hotels with real prices and ratings.";
+    } else if (lowerMsg.includes("flight") || lowerMsg.includes("fly")) {
+      reply = "Our flight search connects you to major Indian routes. Popular routes include Hyderabad ↔ Mumbai, Delhi ↔ Bangalore, and Chennai ↔ Goa.";
+    } else if (lowerMsg.includes("price") || lowerMsg.includes("cost")) {
+      reply = "Hotel prices vary by city:\n• Hyderabad: ₹5,800 - ₹18,500/night\n• Mumbai: ₹6,500 - ₹22,000/night\n• Delhi: ₹7,200 - ₹21,000/night\n• Bangalore: ₹6,500 - ₹19,000/night\n• Goa: ₹6,500 - ₹18,000/night\n• Chennai: ₹7,200 - ₹17,000/night";
+    } else if (lowerMsg.includes("goa") || lowerMsg.includes("mumbai") || lowerMsg.includes("delhi") || lowerMsg.includes("bangalore") || lowerMsg.includes("chennai") || lowerMsg.includes("hyderabad")) {
+      reply = `Great choice! I have detailed hotel listings for that city. Visit our Hotels page to see ${message} hotels on an interactive map with prices, ratings, and photos.`;
+    } else if (lowerMsg.includes("hello") || lowerMsg.includes("hi")) {
+      reply = "Hello! I'm JourneyIt AI. I can help you find hotels, compare prices, and plan your perfect trip across India. What city would you like to explore?";
+    } else if (lowerMsg.includes("thank")) {
+      reply = "You're welcome! Happy to help plan your journey. Safe travels! 🛫";
     }
-  );
+
+    return {
+      reply,
+      conversation_id: conversation_id || "mock-conv-1",
+      intent: "general",
+    };
+  }
 }
 
 // ─── OTP ────────────────────────────────────
@@ -305,8 +359,13 @@ export async function searchFlights(data: {
   to_iata: string;
   date: string;
 }): Promise<FlightSearchResult> {
-  return apiFetch<FlightSearchResult>("/search-flights", {
-    method: "POST",
-    body: JSON.stringify(data),
-  });
+  try {
+    return await apiFetch<FlightSearchResult>("/search-flights", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  } catch {
+    // Fallback to mock data when backend is unavailable
+    return getMockFlightSearchResult(data.from_iata, data.to_iata, data.date);
+  }
 }

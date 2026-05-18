@@ -8,16 +8,11 @@ import RegisterPage from "@/pages/RegisterPage";
 import ForgotPasswordPage from "@/pages/ForgotPasswordPage";
 import ProfilePage from "@/pages/ProfilePage";
 import HotelsPage from "@/pages/HotelsPage";
+import HotelsDiscoveryPage from "@/pages/HotelsDiscoveryPage";
 import HotelDetailPage from "@/pages/HotelDetailPage";
 import ChatPage from "@/pages/ChatPage";
-
-function FlightsPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center text-muted-foreground">
-      Flights Page — coming next
-    </div>
-  );
-}
+import FlightsPage from "@/pages/FlightsPage";
+import FlightDetailPage from "@/pages/FlightDetailPage";
 
 function App() {
   return (
@@ -25,7 +20,9 @@ function App() {
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route path="/flights" element={<FlightsPage />} />
+        <Route path="/flights/:id" element={<FlightDetailPage />} />
         <Route path="/hotels" element={<HotelsPage />} />
+        <Route path="/hotels/discover" element={<HotelsDiscoveryPage />} />
         <Route path="/hotels/:id" element={<HotelDetailPage />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/contact" element={<ContactPage />} />
